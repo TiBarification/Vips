@@ -39,22 +39,10 @@ SOFTWARE.
 	//What elements active?
 	$VIPShowSteamID = true;				//Показывать SteamID випов? (true - да|false -нет)
 	$VIPShowGroups = true;				//Показывать группы випов? (true - да|false -нет)
+	$VIPOrderBy = 'group';				//Сортировать таблицу по (name - нику; steamid - SteamID; group - группе; time - истекает)
+	$Per_Page = 5;						//Сколько элементов на страницу
 
 /*Do not edit above this comment*/
-try
-{
-	$connect_db = new PDO('mysql:host='.$vip_host.';dbname='.$vip_db, $vip_username, $vip_password);
-}
-catch(PDOException $e)
-{
-	die("Failed to connect to database! Please check the database settings.");
-}
-/*Не реализовано.
-
-$monthes = array(1 => 'Января', 2 => 'Февраля', 3 => 'Марта', 4 => 'Апреля',
-5 => 'Мая', 6 => 'Июня', 7 => 'Июля', 8 => 'Августа',
-9 => 'Сентября', 10 => 'Октября', 11 => 'Ноября', 12 => 'Декабря');
-*/
 ?>
 <!DOCTYPE html>
 <html>
@@ -99,33 +87,82 @@ $monthes = array(1 => 'Января', 2 => 'Февраля', 3 => 'Марта', 
 			</thead>
 			<tbody>
 <?php
-	$SelectPlayers = $connect_db->query("SELECT * FROM ".$vip_db_table);
-	foreach($SelectPlayers as $PrintPlayers)
+Post($vip_host, $vip_username, $vip_password, $vip_db, $vip_db_table, $critery = null, $limit = $Per_Page, $VIPOrderBy, $VIPShowSteamID, $VIPShowGroups);
+	
+function Post($vip_host, $vip_username, $vip_password, $vip_db, $table, $critery = null, $limit = 5, $OrderBy = 'group', $ShowSteamID = true, $ShowGroups = true)
+{
+	try
 	{
-		echo '<tr>';
-		echo '<td>'.$PrintPlayers['name'].'</td>';
-		if ($VIPShowSteamID)
+		$connect_db = new PDO('mysql:host='.$vip_host.';dbname='.$vip_db, $vip_username, $vip_password);
+	}
+	catch(PDOException $e)
+	{
+		die("Failed to connect to database! Please check the database settings.");
+	}
+	//Формирование критерий поиска
+	$where = NULL;
+	if (isset($critery))
+	{
+		list($at, $vl) = explode("=", $critery);
+		$atribute = trim($at);
+		$value = trim($vl);
+		$where = "WHERE `$atribute` = '$value'";
+	}
+	//Отправная точка отсчета
+	$begin = isset($_GET['page'])?intval($_GET['page']):1;
+	//Запрос в БД
+	$query = "SELECT * FROM `$table` $where ORDER BY `$OrderBy` DESC LIMIT ".$begin.", ".$limit;
+	$result = $connect_db->query($query);
+	//Сохраняем все значения в массив
+	$row = $result->fetchAll(PDO::FETCH_ASSOC);
+	//Перебираем массив и формируем визуализацию
+	if(is_array($row))
+	{
+		foreach($row as $array)
 		{
-			echo '<td>'.$PrintPlayers['steamid'].'</td>';
-		}
-		if ($VIPShowGroups)
-		{
-			echo '<td>'.$PrintPlayers['group'].'</td>';
-		}
-		if ($PrintPlayers['time'] == '0'){
-			echo "<td>Никогда</td>";
-		}
-		else{
-			echo '<td>'.date("d-m-Y H:i", $PrintPlayers['time']).'</td>';
+			echo '<tr>';
+			echo '<td>'.substr($array['name'], 0, 400).'</td>';
+			if ($ShowSteamID)
+			{
+				echo '<td>'.$array['steamid'].'</td>';
+			}
+			if ($ShowGroups)
+			{
+				echo '<td>'.$array['group'].'</td>';
+			}
+			if ($array['time'] == '0'){
+				echo "<td>Никогда</td>";
+			}
+			else
+			{
+				echo '<td>'.date("d-m-Y H:i", $array['time']).'</td>';
+			}
 		}
 	}
+	$query = "SELECT COUNT(*) as `count` FROM `$table` ".$where;
+	$result = $connect_db->query($query);
+	//Подсчитываем сколько строк
+	$count = $result->fetch(PDO::FETCH_OBJ)->count;
+	//Вычисляем сколько будет страниц
+	$pageCount = ceil($count/$limit);
+	$navigation = NULL;
+
 ?>
 			</tbody>
 		</table>
 	</div>
+	<?php //Формируем навигацию
+	for($i=1; $i<=$pageCount; $i++)
+	{
+		$navigation .= '<a class="btn btn-default" href="index.php?page='.($i).'">'.($i).'</a>';
+	}
+	echo '<div align="right" class="container-fluid">'.$navigation.'</div>';
+	}
+	?>
 	</body>
 	<footer>
 		Autor <a href="https://github.com/TiBarification">TiBarification</a><br/>
 		Made with <a href="http://getbootstrap.com/">Bootstrap</a>.
+		<p class="text-center"><strong>Version: 1.2</strong></p>
 	</footer>
 </html>
